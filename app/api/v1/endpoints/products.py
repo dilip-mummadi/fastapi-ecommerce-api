@@ -30,9 +30,10 @@ async def list_products(
     category_id: uuid.UUID | None = None,
     min_price: float | None = Query(default=None, ge=0),
     max_price: float | None = Query(default=None, ge=0),
-    sort: str = Query(default="created_at", pattern="^(created_at|price_asc|price_desc|name)$"),
+    sort: str = Query(default="created_at", pattern="^(created_at|price_asc|price_desc|name|rating)$"),
+    min_rating: float | None = Query(default=None, ge=0, le=5, description="Filter by minimum average rating"),
 ):
-    cache_key = f"{CACHE_PREFIX}{page}:{page_size}:{search}:{category_id}:{min_price}:{max_price}:{sort}"
+    cache_key = f"{CACHE_PREFIX}{page}:{page_size}:{search}:{category_id}:{min_price}:{max_price}:{sort}:{min_rating}"
     cached = await cache_get(cache_key)
     if cached:
         return cached
@@ -46,6 +47,7 @@ async def list_products(
         min_price=min_price,
         max_price=max_price,
         sort=sort,
+        min_rating=min_rating,
     )
     page_result = Page(
         items=products,
