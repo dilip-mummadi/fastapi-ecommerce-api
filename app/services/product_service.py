@@ -77,6 +77,7 @@ async def list_products(
     min_price: float | None = None,
     max_price: float | None = None,
     sort: str = "created_at",
+    min_rating: float | None = None,
 ) -> tuple[list[ProductRead], int]:
     query = select(Product).options(selectinload(Product.category)).where(Product.is_active.is_(True))
 
@@ -90,11 +91,25 @@ async def list_products(
     if max_price is not None:
         query = query.where(Product.price <= max_price)
 
+    # rating sort requires a subquery join; for other sorts use simple column ordering
+    avg_rating_sub = (
+        select(Review.product_id, func.avg(Review.rating).label("avg_rating"))
+        .group_by(Review.product_id)
+        .subquery()
+    )
+    if sort == "rating" or min_rating is not None:
+        query = query.outerjoin(avg_rating_sub, Product.id == avg_rating_sub.c.product_id)
+        if min_rating is not None:
+            query = query.where(
+                func.coalesce(avg_rating_sub.c.avg_rating, 0) >= min_rating
+            )
+
     sort_map = {
         "price_asc": Product.price.asc(),
         "price_desc": Product.price.desc(),
         "name": Product.name.asc(),
         "created_at": Product.created_at.desc(),
+        "rating": func.coalesce(avg_rating_sub.c.avg_rating, 0).desc(),
     }
     query = query.order_by(sort_map.get(sort, Product.created_at.desc()))
 
