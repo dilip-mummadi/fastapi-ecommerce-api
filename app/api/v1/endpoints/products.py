@@ -24,15 +24,15 @@ CACHE_PREFIX = "products:list:"
 @router.get("/", response_model=Page[ProductRead])
 async def list_products(
     db: AsyncSession = Depends(get_db),
-    page: int = Query(default=1, ge=1),
-    size: int = Query(default=20, ge=1, le=100),
+    page: int = Query(default=1, ge=1, description="Page number (1-based)"),
+    page_size: int = Query(default=20, ge=1, le=100, description="Number of items per page (max 100)"),
     search: str | None = None,
     category_id: uuid.UUID | None = None,
     min_price: float | None = Query(default=None, ge=0),
     max_price: float | None = Query(default=None, ge=0),
     sort: str = Query(default="created_at", pattern="^(created_at|price_asc|price_desc|name)$"),
 ):
-    cache_key = f"{CACHE_PREFIX}{page}:{size}:{search}:{category_id}:{min_price}:{max_price}:{sort}"
+    cache_key = f"{CACHE_PREFIX}{page}:{page_size}:{search}:{category_id}:{min_price}:{max_price}:{sort}"
     cached = await cache_get(cache_key)
     if cached:
         return cached
@@ -40,7 +40,7 @@ async def list_products(
     products, total = await product_service.list_products(
         db,
         page=page,
-        size=size,
+        page_size=page_size,
         search=search,
         category_id=category_id,
         min_price=min_price,
@@ -48,7 +48,11 @@ async def list_products(
         sort=sort,
     )
     page_result = Page(
-        items=products, total=total, page=page, size=size, pages=product_service.total_pages(total, size)
+        items=products,
+        total=total,
+        page=page,
+        page_size=page_size,
+        pages=product_service.total_pages(total, page_size),
     )
     await cache_set(cache_key, page_result.model_dump(mode="json"), ttl_seconds=30)
     return page_result

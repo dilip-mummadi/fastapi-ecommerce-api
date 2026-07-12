@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.exceptions import ConflictError, NotFoundError
+from app.core.exceptions import ConflictError, InvalidPageError, NotFoundError
 from app.models.product import Product
 from app.models.review import Review
 from app.schemas.category import CategoryRead
@@ -71,7 +71,7 @@ async def list_products(
     db: AsyncSession,
     *,
     page: int = 1,
-    size: int = 20,
+    page_size: int = 20,
     search: str | None = None,
     category_id: uuid.UUID | None = None,
     min_price: float | None = None,
@@ -101,7 +101,13 @@ async def list_products(
     count_result = await db.execute(select(func.count()).select_from(query.subquery()))
     total = count_result.scalar_one()
 
-    query = query.offset((page - 1) * size).limit(size)
+    total_pgs = total_pages(total, page_size)
+    if page > total_pgs:
+        raise InvalidPageError(
+            f"Page {page} is out of range. Total pages: {total_pgs}."
+        )
+
+    query = query.offset((page - 1) * page_size).limit(page_size)
     result = await db.execute(query)
     products = list(result.scalars().all())
 
@@ -124,5 +130,5 @@ async def delete_product(db: AsyncSession, product_id: uuid.UUID) -> None:
     await db.commit()
 
 
-def total_pages(total: int, size: int) -> int:
-    return max(1, math.ceil(total / size))
+def total_pages(total: int, page_size: int) -> int:
+    return max(1, math.ceil(total / page_size))

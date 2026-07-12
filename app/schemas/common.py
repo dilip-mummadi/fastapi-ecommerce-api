@@ -10,5 +10,5 @@ class Page(BaseModel, Generic[T]):
     items: list[T]
     total: int
     page: int
-    size: int
+    page_size: int
     pages: int
